@@ -8,7 +8,8 @@ Warning: do not use at x = 0!
 """
 
 #Verbosity switch
-verbose=False
+#verbose=False
+verbose=True
 
 from scipy import integrate
 from mpmath import mp
@@ -122,22 +123,20 @@ class KnlInt(object) :
 				cmterm = mp.cos(x * amb) * (csum - cdiff) / amb ** (self.n - mp.mpf(2))
 				spterm = mp.sin(x * apb) * (ssum + sdiff) / apb ** (self.n - mp.mpf(1))
 				smterm = mp.sin(x * amb) * (ssum - sdiff) / amb ** (self.n - mp.mpf(1))
-				# Compute result and check precision
+				# Compute result 
 				termlist = [cpterm,cmterm,spterm,smterm]
 				termlist = [mp.mpf('0.25') / abl * term for term in termlist]
-				# Compute the order of sum of abs(terms)
-				abslist = [mp.fabs(term) for term in termlist]
-				maxdigits = mp.floor(mp.log10(sum(abslist)))
-				# Compute the order of abs(sum(terms))
 				result = sum(termlist)
-				resdigits = mp.floor(mp.log10(mp.fabs(result)))
 				# Compute precision loss
-				prec_loss = maxdigits-resdigits
+				abslist = [mp.fabs(term) for term in termlist]
+				abssum=mp.fabs(result)
+				sumabs=sum(abslist)
+				prec_loss = mp.ceil(mp.log10(sumabs/abssum))
 				prec_remaining = mp.dps - prec_loss
 				if verbose:
 					print "Precision remaining",prec_remaining
 				# Demand that at least machine precision remains FIXME: more?
-				if prec_remaining<13:
+				if prec_remaining<16:
 					sys.exit("Insufficient precision")
 				# Add the lot together
 				# print mp.mpf('0.25') / abl * (cpterm + cmterm + spterm + smterm)
@@ -158,11 +157,35 @@ def K2Int(l, x, poly) :
 				terms = b*sphj(l, a*x)*sphj(l-1, b*x) - a*sphj(l-1, a*x)*sphj(l, b*x)
 		return coeff*terms
 
+
+
+
+def K2Zero(self,x,l,n):
+ if l!=0:
+	 return 0.0
+ else:
+	 return (1.0/(n+1))*x**(n+1)
+
+def K1Zero(self,kpair,l,n,coeff):
+ if l!=0:
+	 return 0.0
+#FIXME: Need to implement ICalc analytic forms!
+# else:
+#	 return ICalc.Calculate(kpair,l,n,coeff)
+
+
+
 def Calculate(xpair,l,n,a,b):
 	#FIXME: converting pyfloat to mpf
 	#is introducing garbage in lsbs. 
 	#Need to fix this. This is just to get
 	#infrastructure in place.
+
+	
+
+
+
+	#Radii treated as rational numbers here.
 	mpa=mp.mpf(a)
 	mpb=mp.mpf(b)
 	mpxpair=[mp.mpf(xpair[0]),mp.mpf(xpair[1])]
