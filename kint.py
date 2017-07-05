@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 """
 Evaluates indefinite integrals of the form
@@ -7,132 +7,152 @@ for n=2, 4, 6 with a != b and 0 <= l <= 10 by hard-coded expressions
 Warning: do not use at x = 0!
 """
 
+from scipy import integrate
+from mpmath import mp
 import numpy as np
 from math import cos, sin
 from scipy.special import spherical_jn as sphj
+import time
+
+mp.dps=200
 
 class Polynomial(object) :
-    """
-    Computes polynomials of the form
-    coeff[0] a^2n + coeff[1] a^2(n-1) b^2 + ...
-    ... + coeff[n-2] a^2 b^2(n-1) + coeff[n-1] b^2n
-    a and b are set at initialization
-    coefficients are passed in as a list
-    """
+		"""
+		Computes polynomials of the form
+		coeff[0] a^2n + coeff[1] a^2(n-1) b^2 + ...
+		... + coeff[n-2] a^2 b^2(n-1) + coeff[n-1] b^2n
+		a and b are set at initialization
+		coefficients are passed in as a list
+		"""
 
-    def __init__(self, a, b) :
-        self.a = a
-        self.b = b
-        self.a2 = a*a
-        self.b2 = b*b
-        self.stored = {}
+		def __init__(self, a, b) :
+				self.a = a
+				self.b = b
+				self.a2 = a*a
+				self.b2 = b*b
+				self.stored = {}
 
-    def get_list(self, n) :
-        if n in self.stored :
-            return self.stored[n]
-        self.stored[n] = self._make_list(n)
-        return self.stored[n]
+		def get_list(self, n) :
+				if n in self.stored :
+						return self.stored[n]
+				self.stored[n] = self._make_list(n)
+				return self.stored[n]
 
-    def _make_list(self, n) :
-        """
-        Creates a list of monomials:
-        a^2n, a^2(n-1) b^2, ..., a^2 b^2(n-1), b^2n
-        """
-        # Creates a list of (a^2n, a^2(n-1), ..., a^2, 1)
-        apoly = np.full(n, self.a2)
-        apoly[0] = 1
-        apoly = np.flipud(np.cumprod(apoly))
-        # Same for b, just reversed
-        bpoly = np.full(n, self.b2)
-        bpoly[0] = 1
-        bpoly = np.cumprod(bpoly)
-        # Multiply the two together to get the list of monomials
-        return apoly * bpoly
+		def _make_list(self, n) :
+				"""
+				Creates a list of monomials:
+				a^2n, a^2(n-1) b^2, ..., a^2 b^2(n-1), b^2n
+				"""
+				# Creates a list of (a^2n, a^2(n-1), ..., a^2, 1)
+				apoly = np.full(n, self.a2)
+				apoly[0] = mp.mpf(1)
+				apoly = np.flipud(np.cumprod(apoly))
+				# Same for b, just reversed
+				bpoly = np.full(n, self.b2)
+				bpoly[0] = mp.mpf(1)
+				bpoly = np.cumprod(bpoly)
+				# Multiply the two together to get the list of monomials
+				return apoly * bpoly
 
-    def eval_poly(self, coeff) :
-        """
-        Evaluates a polynomial of the form
-        coeff[0] a^2n + coeff[1] a^2(n-1) b^2 + ...
-        ... + coeff[n-2] a^2 b^2(n-1) + coeff[n-1] b^2n
-        """
-        return np.sum(coeff * self.get_list(len(coeff)))
+		def eval_poly(self, coeff) :
+				"""
+				Evaluates a polynomial of the form
+				coeff[0] a^2n + coeff[1] a^2(n-1) b^2 + ...
+				... + coeff[n-2] a^2 b^2(n-1) + coeff[n-1] b^2n
+				"""
+				return np.sum(coeff * self.get_list(len(coeff)))
 
 class Term(object) :
-    """
-    Describes a term of the form
-    C x^n (ab)^m poly(a, b)
-    where poly is a polynomial in a^2 and b^2
-    """
-    def __init__(self, c, n, m, coeffs=[1]) :
-        self.c = c
-        self.n = n
-        self.m = m
-        self.coeffs = coeffs
+		"""
+		Describes a term of the form
+		C x^n (ab)^m poly(a, b)
+		where poly is a polynomial in a^2 and b^2
+		"""
+		def __init__(self, c, n, m, coeffs=[1]) :
+			self.c = mp.mpf(c)
+			self.n = mp.mpf(n)
+			self.m = mp.mpf(m)
+			self.coeffs = []
+			for coeff in coeffs:
+				self.coeffs.append(mp.mpf(coeff))
 
-    def evaluate(self, x, poly) :
-        """Evaluates the term, given x and a poly object that stores a and b"""
-        xn = x ** self.n
-        abm = 1
-        if self.m != 0 :
-            abm = (poly.a * poly.b) ** self.m
-        return self.c * xn * abm * poly.eval_poly(self.coeffs)
+		def evaluate(self, x, poly) :
+				"""Evaluates the term, given x and a poly object that stores a and b"""
+				xn = x ** self.n
+				abm = mp.mpf(1)
+				if self.m != 0 :
+						abm = (poly.a * poly.b) ** self.m
+				return self.c * xn * abm * poly.eval_poly(self.coeffs)
 
 class Part(object) :
-    """
-    Describes a part of an integral as a sum of terms
-    """
-    def __init__(self, terms) :
-        """Pass in a list of terms"""
-        self.terms = terms
+		"""
+		Describes a part of an integral as a sum of terms
+		"""
+		def __init__(self, terms) :
+				"""Pass in a list of terms"""
+				self.terms = terms
 
-    def evaluate(self, x, poly) :
-        """Evaluates the part, given x and a poly object that stores a and b"""
-        return sum([term.evaluate(x, poly) for term in self.terms])
+		def evaluate(self, x, poly) :
+				"""Evaluates the part, given x and a poly object that stores a and b"""
+				return sum([term.evaluate(x, poly) for term in self.terms])
 
 class KnlInt(object) :
-    """
-    Describes an integral as an appropriate sum of parts
-    """
-    def __init__(self, n, l, csum, cdiff, ssum, sdiff) :
-        """Describe the integral, and provide a list of parts"""
-        self.n = n
-        self.l = l
-        self.parts = [csum, cdiff, ssum, sdiff]
+		"""
+		Describes an integral as an appropriate sum of parts
+		"""
+		def __init__(self, n, l, csum, cdiff, ssum, sdiff) :
+				"""Describe the integral, and provide a list of parts"""
+				self.n = mp.mpf(n)
+				self.l = mp.mpf(l)
+				self.parts = [csum, cdiff, ssum, sdiff]
 
-    def evaluate(self, x, poly) :
-        """Evaluates the integral, given x and a poly object that stores a and b"""
-        # Evaluate each part (csum, cdiff, ssum, sdiff)
-        csum, cdiff, ssum, sdiff = [part.evaluate(x, poly) for part in self.parts]
-        # Compute the required coefficients
-        abl = (poly.a * poly.b) ** (self.l + 1)
-        apb = poly.a + poly.b
-        amb = poly.a - poly.b
-        # Evaluate each term
-        cpterm = cos(x * apb) * (csum + cdiff) / apb ** (self.n - 2)
-        cmterm = cos(x * amb) * (csum - cdiff) / amb ** (self.n - 2)
-        spterm = sin(x * apb) * (ssum + sdiff) / apb ** (self.n - 1)
-        smterm = sin(x * amb) * (ssum - sdiff) / amb ** (self.n - 1)
-        print("cpterm:", 0.25 / abl * cpterm)
-        print("cmterm:", 0.25 / abl * cmterm)
-        print("spterm:", 0.25 / abl * spterm)
-        print("smterm:", 0.25 / abl * smterm)
-        # Add the lot together
-        return 0.25 / abl * (cpterm + cmterm + spterm + smterm)
+		def evaluate(self, x, poly) :
+				"""Evaluates the integral, given x and a poly object that stores a and b"""
+				# Evaluate each part (csum, cdiff, ssum, sdiff)
+				csum, cdiff, ssum, sdiff = [part.evaluate(x, poly) for part in self.parts]
+				# Compute the required coefficients
+				abl = (poly.a * poly.b) ** (self.l + mp.mpf(1))
+				apb = poly.a + poly.b
+				amb = poly.a - poly.b
+				# Evaluate each term
+				cpterm = mp.cos(x * apb) * (csum + cdiff) / apb ** (self.n - mp.mpf(2))
+				cmterm = mp.cos(x * amb) * (csum - cdiff) / amb ** (self.n - mp.mpf(2))
+				spterm = mp.sin(x * apb) * (ssum + sdiff) / apb ** (self.n - mp.mpf(1))
+				smterm = mp.sin(x * amb) * (ssum - sdiff) / amb ** (self.n - mp.mpf(1))
+				# Compute result and check precision
+				termlist = [cpterm,cmterm,spterm,smterm]
+				termlist = [mp.mpf('0.25') / abl * term for term in termlist]
+				# Compute the order of sum of abs(terms)
+				abslist = [mp.fabs(term) for term in termlist]
+				maxdigits = mp.floor(mp.log10(sum(abslist)))
+				# Compute the order of abs(sum(terms))
+				result = sum(termlist)
+				resdigits = mp.floor(mp.log10(mp.fabs(result)))
+				# Compute precision loss
+				prec_loss = maxdigits-resdigits
+				prec_remaining = mp.dps - prec_loss
+				print "Precision remaining",prec_remaining
+				# Demand that at least machine precision remains FIXME: more?
+				if prec_remaining<13:
+					sys.exit("Insufficient precision")
+				# Add the lot together
+				# print mp.mpf('0.25') / abl * (cpterm + cmterm + spterm + smterm)
+				return result
 
 def K2Int(l, x, poly) :
-    """
-    Computes the integral
-    \int x^n j_l(ax) j_l(bx) dx
-    which is known analytically
-    """
-    a = poly.a
-    b = poly.b
-    coeff = x*x/(a*a-b*b)
-    if l == 0 :
-        terms = sphj(l, a*x)*cos(b*x)/x - cos(a*x)/x*sphj(l, b*x)
-    else :
-        terms = b*sphj(l, a*x)*sphj(l-1, b*x) - a*sphj(l-1, a*x)*sphj(l, b*x)
-    return coeff*terms
+		"""
+		Computes the integral
+		\int x^2 j_l(ax) j_l(bx) dx
+		which is known analytically
+		"""
+		a = poly.a
+		b = poly.b
+		coeff = x*x/(a*a-b*b)
+		if l == 0 :
+				terms = sphj(l, a*x)*cos(b*x)/x - cos(a*x)/x*sphj(l, b*x)
+		else :
+				terms = b*sphj(l, a*x)*sphj(l-1, b*x) - a*sphj(l-1, a*x)*sphj(l, b*x)
+		return coeff*terms
 
 integrals = {}
 
@@ -335,12 +355,49 @@ sdiff = Part([Term(-2, 4, 10, [1, 6, 1]), Term(57156021553380750, -14, 0, [1, 15
 integrals[(n, l)] = KnlInt(n, l, csum, cdiff, ssum, sdiff)
 
 # Testing
-a = 0.01
-b = 5.0
-poly = Polynomial(a, b)
-result1 = integrals[(n, l)].evaluate(10.0, poly)
 
-print(result1)
 
-# Test for n=2
+def BesselIntegrand(x,n,l,a,b):
+	return x**n*sphj(l,a*x)*sphj(l,b*x)
+
+
+n=6
+l=4
+a = mp.mpf('0.01')
+b = mp.mpf('50.0')
+x1 = mp.mpf('1e-3')
+x2 = mp.mpf('1e3')
+
+def Compare(x1,x2,n,l,a,b):
+	start = time.clock()
+	poly = Polynomial(a, b)
+	result1 = integrals[(n, l)].evaluate(x1, poly)
+	result2 = integrals[(n, l)].evaluate(x2, poly)
+	an1 = result2-result1
+	end = time.clock()
+	adelta = end-start
+
+
+	start = time.clock()
+	quad1= integrate.quad(BesselIntegrand,float(x1),float(x2),args=(n,l,float(a),float(b)),limit=1000)
+	end = time.clock()
+	qdelta = end-start
+	diff = abs(float(an1)-quad1[0])
+	quad_err = abs(quad1[1])
+	print "Analytics: ","{:.10E}".format(float(an1))
+	print "Quadrature:","{:.10E}".format(quad1[0])
+	print "Diff: ", "{:.5E}".format(diff)
+	print "QErr: ", "{:.5E}".format(quad_err)
+	print
+	print "Analytic Time: ",adelta," Seconds"
+	print "Quadrature Time: ",qdelta," Seconds"
+	print "Speedup: ",qdelta/adelta
+
+for l in range(4,10):
+	print "n=",n
+	print "l=",l
+	Compare(x1,x2,n,l,a,b)
+	print
+	print
+
 #print(K2Int(l, x, mypoly))
