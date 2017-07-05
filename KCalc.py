@@ -158,6 +158,26 @@ def K2Int(l, x, poly) :
 				terms = b*sphj(l, a*x)*sphj(l-1, b*x) - a*sphj(l-1, a*x)*sphj(l, b*x)
 		return coeff*terms
 
+def Calculate(xpair,l,n,a,b):
+	#FIXME: converting pyfloat to mpf
+	#is introducing garbage in lsbs. 
+	#Need to fix this. This is just to get
+	#infrastructure in place.
+	mpa=mp.mpf(a)
+	mpb=mp.mpf(b)
+	mpxpair=[mp.mpf(xpair[0]),mp.mpf(xpair[1])]
+	start = time.clock()
+	poly = Polynomial(mpa, mpb)
+	result1 = integrals[(n, l)].evaluate(mpxpair[0], poly)
+	result2 = integrals[(n, l)].evaluate(mpxpair[1], poly)
+	res = result2-result1
+	end = time.clock()
+	adelta = end-start
+	return float(res)
+
+#-----------------------------------------------------------------------------
+# Integral Coefficients Below
+
 integrals = {}
 
 # n=4, l=0
@@ -359,61 +379,4 @@ sdiff = Part([Term(-2, 4, 10, [1, 6, 1]), Term(57156021553380750, -14, 0, [1, 15
 integrals[(n, l)] = KnlInt(n, l, csum, cdiff, ssum, sdiff)
 
 
-def Calculate(xpair,l,n,a,b):
-	#FIXME: converting pyfloat to mpf
-	#is introducing garbage in lsbs. 
-	#Need to fix this. This is just to get
-	#infrastructure in place.
-	mpa=mp.mpf(a)
-	mpb=mp.mpf(b)
-	mpxpair=[mp.mpf(xpair[0]),mp.mpf(xpair[1])]
-	start = time.clock()
-	poly = Polynomial(mpa, mpb)
-	result1 = integrals[(n, l)].evaluate(mpxpair[0], poly)
-	result2 = integrals[(n, l)].evaluate(mpxpair[1], poly)
-	res = result2-result1
-	end = time.clock()
-	adelta = end-start
-	return float(res)
 
-# Testing
-#def BesselIntegrand(x,n,l,a,b):
-#	return x**n*sphj(l,a*x)*sphj(l,b*x)
-#n=6
-#l=4
-#a = mp.mpf('0.01')
-#b = mp.mpf('50.0')
-#x1 = mp.mpf('1e-3')
-#x2 = mp.mpf('1e3')
-#
-#def Compare(x1,x2,n,l,a,b):
-#	start = time.clock()
-#	poly = Polynomial(a, b)
-#	result1 = integrals[(n, l)].evaluate(x1, poly)
-#	result2 = integrals[(n, l)].evaluate(x2, poly)
-#	an1 = result2-result1
-#	end = time.clock()
-#	adelta = end-start
-#	start = time.clock()
-#	quad1= integrate.quad(BesselIntegrand,float(x1),float(x2),args=(n,l,float(a),float(b)),limit=1000)
-#	end = time.clock()
-#	qdelta = end-start
-#	diff = abs(float(an1)-quad1[0])
-#	quad_err = abs(quad1[1])
-#	print "Analytics: ","{:.10E}".format(float(an1))
-#	print "Quadrature:","{:.10E}".format(quad1[0])
-#	print "Diff: ", "{:.5E}".format(diff)
-#	print "QErr: ", "{:.5E}".format(quad_err)
-#	print
-#	print "Analytic Time: ",adelta," Seconds"
-#	print "Quadrature Time: ",qdelta," Seconds"
-#	print "Speedup: ",qdelta/adelta
-#
-#for l in range(4,10):
-#	print "n=",n
-#	print "l=",l
-#	Compare(x1,x2,n,l,a,b)
-#	print
-#	print
-#
-##print(K2Int(l, x, mypoly))
